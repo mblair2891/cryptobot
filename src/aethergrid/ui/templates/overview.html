@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head">
+  <div>
+    <h2>Overview</h2>
+    <p>{% if mode == 'demo' %}Simulated desk — grids complete cycles and also fail in trends.{% else %}Paper-first grid desk. Funds never leave your Coinbase account.{% endif %}</p>
+  </div>
+  <div class="row-actions">
+    {% if overview.kill_switch %}
+      <button class="btn" data-action="unkill">Clear kill switch</button>
+    {% else %}
+      <button class="btn danger" data-action="kill">Kill switch</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if overview.kill_switch %}
+  <p class="warn">Kill switch is ON. Open orders are cancelled and the AI is frozen until you clear it.</p>
+{% endif %}
+
+<div class="grid-4">
+  <div class="card">
+    <h3>Equity</h3>
+    <div class="metric">{{ overview.equity }}</div>
+    <div class="sub">mode {{ overview.mode }}</div>
+  </div>
+  <div class="card">
+    <h3>Realized PnL</h3>
+    <div class="metric">{{ overview.realized }}</div>
+    <div class="sub">daily {{ overview.daily_realized }}</div>
+  </div>
+  <div class="card">
+    <h3>Unrealized</h3>
+    <div class="metric">{{ overview.unrealized }}</div>
+    <div class="sub">drawdown {{ overview.drawdown_pct }}</div>
+  </div>
+  <div class="card">
+    <h3>Desk</h3>
+    <div class="metric">{{ overview.bots }}</div>
+    <div class="sub">{{ overview.open_orders }} open · {{ overview.products }} products</div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-top:18px">
+  <div class="card">
+    <h3>Bots</h3>
+    <table>
+      <thead><tr><th>Bot</th><th>Pair</th><th>Status</th><th>Realized</th></tr></thead>
+      <tbody>
+        {% for b in bots %}
+        <tr>
+          <td><a href="/bots/{{ b.bot_id }}">{{ b.config.name or b.bot_id }}</a></td>
+          <td class="mono">{{ b.product_id }}</td>
+          <td><span class="badge {{ b.status.value }}">{{ b.status.value }}</span></td>
+          <td class="mono">{{ b.inventory.realized_pnl }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="sub">No bots yet. Create one on the Bots page or let the AI propose.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Last AI action</h3>
+    {% if overview.last_ai %}
+      <div class="metric" style="font-size:18px">{{ overview.last_ai.action }}</div>
+      <p class="sub">{{ overview.last_ai.reason }}</p>
+      <p class="sub">{{ overview.last_ai_at }}</p>
+    {% else %}
+      <p class="sub">Operator has not stepped yet.</p>
+    {% endif %}
+    <div class="row-actions" style="margin-top:12px">
+      <a class="btn" href="/ai">Open AI</a>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h3>Recent fills</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Pair</th><th>Side</th><th>Price</th><th>Size</th></tr></thead>
+    <tbody>
+      {% for f in fills %}
+      <tr>
+        <td class="mono">{{ f.ts }}</td>
+        <td class="mono">{{ f.product_id }}</td>
+        <td>{{ f.side }}</td>
+        <td class="mono">{{ f.price }}</td>
+        <td class="mono">{{ f.size }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="sub">No fills yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

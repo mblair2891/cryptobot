@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head">
+  <div>
+    <h2>Bots</h2>
+    <p>Range grids with live level edits, trailing, TP/SL, and add-funds.</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Active</h3>
+    <table>
+      <thead><tr><th>Pair</th><th>Range</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for b in bots %}
+        <tr>
+          <td><a href="/bots/{{ b.bot_id }}">{{ b.product_id }}</a></td>
+          <td class="mono">{{ b.config.lower_price }} – {{ b.config.upper_price }}</td>
+          <td><span class="badge {{ b.status.value }}">{{ b.status.value }}</span></td>
+          <td class="row-actions">
+            <button class="btn" data-action="pause" data-id="{{ b.bot_id }}">Pause</button>
+            <button class="btn" data-action="resume" data-id="{{ b.bot_id }}">Resume</button>
+            <button class="btn danger" data-action="stop" data-id="{{ b.bot_id }}">Stop</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="sub">None running.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Create paper bot</h3>
+    <form class="stack js-create-bot">
+      <label>Product <input name="product_id" value="BTC-USD" required /></label>
+      <label>Investment (quote) <input name="investment" value="1000" required /></label>
+      <label>Lower <input name="lower_price" required /></label>
+      <label>Upper <input name="upper_price" required /></label>
+      <label>Levels <input name="grid_levels" value="21" /></label>
+      <label>Mode
+        <select name="mode">
+          <option value="geometric">geometric</option>
+          <option value="arithmetic">arithmetic</option>
+        </select>
+      </label>
+      <label>Take profit % <input name="take_profit_pct" placeholder="0.08" /></label>
+      <label>Stop loss % <input name="stop_loss_pct" placeholder="0.12" /></label>
+      <label><input type="checkbox" name="trailing_up" /> Trailing up</label>
+      <label><input type="checkbox" name="trailing_down" /> Trailing down</label>
+      <button class="btn primary" type="submit">Start grid</button>
+    </form>
+    <p class="sub">Lower/upper must bracket the live mark. Discover pairs at GET /api/products — nothing is hardcoded.</p>
+  </div>
+</div>
+{% endblock %}

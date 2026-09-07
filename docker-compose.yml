@@ -1,0 +1,54 @@
+services:
+  api:
+    build: .
+    command: aethergrid serve
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MODE: demo
+      LIVE_CONFIRMED: "false"
+      AETHERGRID_EMBED_WORKER: "true"
+      DATABASE_URL: sqlite+aiosqlite:///./data/aethergrid-demo.db
+      AI_INTERVAL_SECONDS: "20"
+      DATA_DIR: /app/data
+      HOST: 0.0.0.0
+      PORT: "8000"
+    volumes:
+      - aether-data:/app/data
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: aethergrid worker
+    profiles: ["split"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MODE: demo
+      AETHERGRID_EMBED_WORKER: "true"
+      DATABASE_URL: sqlite+aiosqlite:///./data/aethergrid-demo.db
+      DATA_DIR: /app/data
+    volumes:
+      - aether-data:/app/data
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: aethergrid
+      POSTGRES_PASSWORD: aethergrid
+      POSTGRES_DB: aethergrid
+    ports:
+      - "5432:5432"
+    volumes:
+      - aether-pg:/var/lib/postgresql/data
+
+volumes:
+  aether-data:
+  aether-pg:

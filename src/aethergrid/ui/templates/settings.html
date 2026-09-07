@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head">
+  <div>
+    <h2>Settings</h2>
+    <p>Hard limits. Secrets are never rendered.</p>
+  </div>
+</div>
+<div class="warn">
+  This is not financial advice. Grid bots lose money in strong trends. Paper is the default.
+  Live trading requires MODE=live and a typed confirmation.
+</div>
+<div class="card" style="margin-top:18px">
+  <table>
+    <tbody>
+      {% for k, v in settings.items() %}
+      <tr>
+        <th>{{ k }}</th>
+        <td class="mono">{{ v }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

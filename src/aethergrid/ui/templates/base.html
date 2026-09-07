@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AetherGrid · {{ page|default('console') }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    {% if mode == 'demo' %}
+    <div class="demo-banner">DEMO — simulated funds and prices. Not connected to Coinbase.</div>
+    {% endif %}
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">non-custodial</div>
+          <h1>AetherGrid</h1>
+        </div>
+        <nav class="nav">
+          <a href="/" class="{{ 'active' if page=='overview' }}">Overview</a>
+          <a href="/bots" class="{{ 'active' if page=='bots' }}">Bots</a>
+          <a href="/ai" class="{{ 'active' if page=='ai' }}">AI operator</a>
+          <a href="/journal" class="{{ 'active' if page=='journal' }}">Journal</a>
+          <a href="/settings" class="{{ 'active' if page=='settings' }}">Settings</a>
+        </nav>
+        <div class="mode-pill {{ mode }}">
+          <span>{{ mode|upper }}</span>
+          <span>{% if live %}LIVE{% elif mode == 'demo' %}SIM{% else %}SAFE{% endif %}</span>
+        </div>
+      </aside>
+      <main class="main">
+        {% block body %}{% endblock %}
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

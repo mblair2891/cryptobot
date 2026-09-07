@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block body %}
+{% if not bot %}
+  <p class="warn">Bot not found.</p>
+{% else %}
+<div class="page-head">
+  <div>
+    <h2>{{ bot.product_id }}</h2>
+    <p class="mono">{{ bot.bot_id }} · {{ bot.config.name }}</p>
+  </div>
+  <div class="row-actions">
+    <span class="badge {{ bot.status.value }}">{{ bot.status.value }}</span>
+    <button class="btn" data-action="pause" data-id="{{ bot.bot_id }}">Pause entries</button>
+    <button class="btn" data-action="resume" data-id="{{ bot.bot_id }}">Resume</button>
+    <button class="btn danger" data-action="stop" data-id="{{ bot.bot_id }}">Stop</button>
+  </div>
+</div>
+
+<div class="grid-4">
+  <div class="card"><h3>Mark</h3><div class="metric">{{ bot.last_mark }}</div></div>
+  <div class="card"><h3>Inventory</h3><div class="metric">{{ bot.inventory.base }}</div><div class="sub">quote {{ bot.inventory.quote }}</div></div>
+  <div class="card"><h3>Realized</h3><div class="metric">{{ bot.inventory.realized_pnl }}</div></div>
+  <div class="card"><h3>Range</h3><div class="metric" style="font-size:16px">{{ bot.config.lower_price }} – {{ bot.config.upper_price }}</div></div>
+</div>
+
+<div class="grid-2" style="margin-top:18px">
+  <div class="card">
+    <h3>Grid</h3>
+    <div class="ladder">
+      {% for s in bot.slots %}
+      <div class="rung {{ s.state.value }}">
+        <span>{{ s.buy_price }}</span>
+        <span class="bar"></span>
+        <span>{{ s.state.value }} {{ s.held_base }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h3>Open orders</h3>
+    <table>
+      <thead><tr><th>Side</th><th>Price</th><th>Size</th></tr></thead>
+      <tbody>
+        {% for o in bot.open_orders.values() %}
+        {% if o.is_open %}
+        <tr>
+          <td>{{ o.side.value }}</td>
+          <td class="mono">{{ o.price }}</td>
+          <td class="mono">{{ o.size }}</td>
+        </tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="3" class="sub">No working orders.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if bot.protection.last_reason %}
+      <p class="sub">protection: {{ bot.protection.last_reason }}</p>
+    {% endif %}
+    {% if bot.last_error %}
+      <p class="warn">{{ bot.last_error }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h3>Fills</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Size</th><th>Fee</th></tr></thead>
+    <tbody>
+      {% for f in fills %}
+      <tr>
+        <td class="mono">{{ f.ts }}</td>
+        <td>{{ f.side }}</td>
+        <td class="mono">{{ f.price }}</td>
+        <td class="mono">{{ f.size }}</td>
+        <td class="mono">{{ f.fee }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="sub">No fills.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

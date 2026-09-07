@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head">
+  <div>
+    <h2>AI operator</h2>
+    <p>Closed action set. Deterministic policy first; optional LLM only ranks pairs.</p>
+  </div>
+  <div class="row-actions">
+    <button class="btn" data-action="ai-pause">Pause AI</button>
+    <button class="btn" data-action="ai-resume">Resume AI</button>
+    <button class="btn primary" data-action="ai-step">Step now</button>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Last decision</h3>
+    {% if operator.last_action %}
+      <div class="metric" style="font-size:20px">{{ operator.last_action.action }}</div>
+      <p>{{ operator.last_action.reason }}</p>
+      <p class="sub">{{ operator.last_at }} · paused={{ operator.paused }} · llm={{ 'yes' if overview }}</p>
+    {% else %}
+      <p class="sub">Waiting for first step.</p>
+    {% endif %}
+    {% if operator.last_error %}
+      <p class="warn">{{ operator.last_error }}</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3>Allowed actions</h3>
+    <p class="sub">noop · propose_new_bot · reconfigure_bot · trail_up/down · pause_entries · resume · add_funds · take_profit_close · stop_loss_close · flatten_and_archive</p>
+    <p class="sub">Hard risk limits cannot be disabled by the operator.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h3>Decision journal</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Action</th><th>Executed</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for d in decisions %}
+      <tr>
+        <td class="mono">{{ d.ts }}</td>
+        <td>{{ d.action }}</td>
+        <td>{{ 'yes' if d.executed else 'no' }}</td>
+        <td>{{ d.reason }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="sub">No decisions yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

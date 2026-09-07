@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-head">
+  <div>
+    <h2>Journal</h2>
+    <p>Every fill and PnL tick is persisted.</p>
+  </div>
+</div>
+<div class="grid-2">
+  <div class="card">
+    <h3>Fills</h3>
+    <table>
+      <thead><tr><th>Time</th><th>Pair</th><th>Side</th><th>Px</th><th>Sz</th></tr></thead>
+      <tbody>
+        {% for f in fills %}
+        <tr>
+          <td class="mono">{{ f.ts }}</td>
+          <td class="mono">{{ f.product_id }}</td>
+          <td>{{ f.side }}</td>
+          <td class="mono">{{ f.price }}</td>
+          <td class="mono">{{ f.size }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="sub">Empty.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>PnL ticks</h3>
+    <table>
+      <thead><tr><th>Time</th><th>Equity</th><th>Realized</th></tr></thead>
+      <tbody>
+        {% for p in pnl %}
+        <tr>
+          <td class="mono">{{ p.ts }}</td>
+          <td class="mono">{{ p.equity }}</td>
+          <td class="mono">{{ p.realized }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="sub">Empty.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

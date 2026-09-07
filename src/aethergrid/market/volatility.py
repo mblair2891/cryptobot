@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+from decimal import Decimal
+from math import sqrt
+
+from aethergrid.domain.models import Candle
+from aethergrid.money import ZERO
+from aethergrid.strategy.protection import atr, donchian, efficiency_ratio
+
+
+def realized_vol(candles: list[Candle], period: int = 24) -> Decimal:
+    if len(candles) < 2:
+        return ZERO
+    window = candles[-period:] if len(candles) >= period else candles
+    rets: list[Decimal] = []
+    for i in range(1, len(window)):
+        prev = window[i - 1].close
+        if prev > 0:
+            rets.append((window[i].close - prev) / prev)
+    if len(rets) < 2:
+        return abs(rets[0]) if rets else ZERO
+    mean = sum(rets, ZERO) / Decimal(len(rets))
+    var = sum(((r - mean) ** 2 for r in rets), ZERO) / Decimal(len(rets) - 1)
+    return Decimal(str(sqrt(float(var))))
+
+
+def range_quality(candles: list[Candle], period: int = 30) -> dict[str, Decimal]:
+    """How mean-reverting vs one-way the recent window looks."""
+    window = candles[-period:] if candles else []
+    if len(window) < 5:
+        return {
+            "oscillation": ZERO,
+            "inside_frac": ZERO,
+            "er": ZERO,
+            "atr": ZERO,
+            "high": ZERO,
+            "low": ZERO,
+        }
+    high, low = donchian(window, len(window))
+    width = high - low
+    if width <= 0:
+        return {
+            "oscillation": ZERO,
+            "inside_frac": ZERO,
+            "er": efficiency_ratio(window),
+            "atr": atr(window),
+            "high": high,
+            "low": low,
+        }
+    mid = (high + low) / 2
+    band = width * Decimal("0.25")
+    crosses = 0
+    last_side = 0
+    inside = 0
+    for c in window:
+        if abs(c.close - mid) <= band:
+            inside += 1
+        side = 1 if c.close >= mid else -1
+        if last_side and side != last_side:
+            crosses += 1
+        last_side = side
+    osc = Decimal(crosses) / Decimal(len(window) - 1)
+    return {
+        "oscillation": osc,
+        "inside_frac": Decimal(inside) / Decimal(len(window)),
+        "er": efficiency_ratio(window),
+        "atr": atr(window),
+        "high": high,
+        "low": low,
+    }
