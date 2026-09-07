@@ -2,6 +2,8 @@
 
 Self-hosted, **non-custodial** GRID trading system for Coinbase Advanced Trade, with an autonomous operator that can start, trail, pause, re-center, and stop bots.
 
+**Repository:** [https://github.com/mblair2891/cryptobot](https://github.com/mblair2891/cryptobot)
+
 This is **not** a custody wallet, **not** a signal-copy service, and **not** financial advice. Default mode is **demo** (synthetic market, zero keys). You can lose money. Grids fail in strong trends.
 
 ```
@@ -55,11 +57,14 @@ Demo, paper, and live share **one** matching engine. The venue adapter is the on
 
 `demo → paper` is allowed. `demo → live` is blocked: leave demo, run paper once, then confirm live. Live credentials are **ignored** while `MODE=demo`.
 
-## Quick start (demo, zero config)
+## Quick start (demo, zero keys)
+
+Clone this repo and run demo. No Coinbase API key, no LLM key, no `.env` secrets.
 
 Requires Python 3.12+.
 
 ```bash
+git clone https://github.com/mblair2891/cryptobot.git
 cd cryptobot
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -104,16 +109,19 @@ The AI operator will also propose bots on liquid USD/USDC pairs when range quali
 pytest -q
 ```
 
-Coverage includes ladder math, fill recycling, trailing, stop-loss, paper fills, reconcile, risk trips, and AI validators.
+Coverage includes ladder math, fill recycling, trailing, stop-loss, paper fills, reconcile, risk trips, AI validators, demo adapter fills, demo seed data, and mode isolation (live Coinbase client is never constructed in demo).
 
 ## Coinbase live trading (explicit, opt-in)
 
 Live mode will **refuse to start** unless all of the following are true:
 
-1. `MODE=live`
-2. `LIVE_CONFIRMED=true`
-3. You ran `aethergrid live --i-understand-the-risk` and typed `I UNDERSTAND THE RISK`
-4. CDP API credentials with **view + trade only**
+1. You have left demo (`MODE` is not `demo`) and have run **paper** at least once
+2. `MODE=live`
+3. `LIVE_CONFIRMED=true`
+4. You ran `aethergrid live --i-understand-the-risk` and typed `I UNDERSTAND THE RISK`
+5. CDP API credentials with **view + trade only**
+
+Keys sitting in `.env` while `MODE=demo` are ignored. Demo cannot place live orders.
 
 ### Create a trade-only CDP key
 
