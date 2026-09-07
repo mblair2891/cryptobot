@@ -20,7 +20,11 @@
   <div class="card"><h3>Mark</h3><div class="metric">{{ bot.last_mark }}</div></div>
   <div class="card"><h3>Inventory</h3><div class="metric">{{ bot.inventory.base }}</div><div class="sub">quote {{ bot.inventory.quote }}</div></div>
   <div class="card"><h3>Realized</h3><div class="metric">{{ bot.inventory.realized_pnl }}</div></div>
-  <div class="card"><h3>Range</h3><div class="metric" style="font-size:16px">{{ bot.config.lower_price }} – {{ bot.config.upper_price }}</div></div>
+  <div class="card"><h3>Cycles completed</h3><div class="metric">{{ bot.cycles_completed }}</div></div>
+</div>
+<div class="card" style="margin-top:18px">
+  <h3>Range</h3>
+  <div class="metric" style="font-size:16px">{{ bot.config.lower_price }} – {{ bot.config.upper_price }}</div>
 </div>
 
 <div class="grid-2" style="margin-top:18px">
@@ -28,10 +32,10 @@
     <h3>Grid</h3>
     <div class="ladder">
       {% for s in bot.slots %}
-      <div class="rung {{ s.state.value }}">
+      <div class="rung {{ s.state.value }} {% if bot.last_mark and s.buy_price <= bot.last_mark <= s.sell_price %}mark{% endif %}">
         <span>{{ s.buy_price }}</span>
         <span class="bar"></span>
-        <span>{{ s.state.value }} {{ s.held_base }}</span>
+        <span>{% if s.held_base and s.held_base > 0 %}filled{% endif %} {{ s.state.value }} {{ s.held_base }}</span>
       </div>
       {% endfor %}
     </div>

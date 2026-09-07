@@ -28,7 +28,10 @@
   </div>
   <div class="card">
     <h3>Allowed actions</h3>
-    <p class="sub">noop · propose_new_bot · reconfigure_bot · trail_up/down · pause_entries · resume · add_funds · take_profit_close · stop_loss_close · flatten_and_archive</p>
+    <p class="sub">noop · select_universe · propose_new_bot · reconfigure_bot · trail_up/down · pause_entries · resume · add_funds · take_profit_close · stop_loss_close · flatten_and_archive</p>
+    {% if operator.last_universe %}
+      <p class="sub">universe: {{ operator.last_universe|join(', ') }}</p>
+    {% endif %}
     <p class="sub">Hard risk limits cannot be disabled by the operator.</p>
   </div>
 </div>

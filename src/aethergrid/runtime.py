@@ -12,7 +12,7 @@ from aethergrid.exchange.base import Exchange
 from aethergrid.exchange.paper import PaperExchange
 from aethergrid.logging import get_logger, setup_logging
 from aethergrid.market.products import PublicMarket, filter_spot
-from aethergrid.mode import assert_mode_allowed
+from aethergrid.mode import ModeError, assert_mode_allowed, persist_runtime_mode, record_mode
 from aethergrid.persistence.db import get_engine, get_session_factory, init_db
 from aethergrid.persistence.repo import Repository
 from aethergrid.risk.limits import RiskEngine
@@ -54,40 +54,121 @@ class AppRuntime:
         assert_mode_allowed(settings)
         rt = cls(settings)
         await init_db(rt.engine)
+        rt._attach_venue()
+        return rt
+
+    def _attach_venue(self) -> None:
+        settings = self.settings
         if settings.mode == "live":
             from aethergrid.exchange.coinbase import CoinbaseExchange
 
             assert_trade_only_key_docs()
-            rt.market = PublicMarket()
-            rt.exchange = CoinbaseExchange(settings, market=rt.market)
+            self.market = PublicMarket()
+            self.exchange = CoinbaseExchange(settings, market=self.market)
         elif settings.mode == "demo":
             from aethergrid.exchange.demo import DemoExchange
 
-            rt.exchange = DemoExchange(
+            self.market = None
+            self.exchange = DemoExchange(
                 starting_quote=settings.demo_quote_balance,
                 fee_bps=settings.demo_fee_bps,
             )
         else:
-            rt.market = PublicMarket()
-            rt.exchange = PaperExchange(
-                rt.market,
+            self.market = PublicMarket()
+            self.exchange = PaperExchange(
+                self.market,
                 quote_currency=settings.paper_quote_currency,
                 starting_quote=settings.paper_quote_balance,
                 fee_bps=settings.paper_fee_bps,
             )
-        rt.manager = BotManager(
+        self.manager = BotManager(
             settings=settings,
-            exchange=rt.exchange,
-            repo=rt.repo,
-            risk=rt.risk,
+            exchange=self.exchange,
+            repo=self.repo,
+            risk=self.risk,
         )
-        rt.operator = AIOperator(
+        self.operator = AIOperator(
             settings=settings,
-            manager=rt.manager,
-            repo=rt.repo,
-            risk=rt.risk,
+            manager=self.manager,
+            repo=self.repo,
+            risk=self.risk,
         )
-        return rt
+        self.operator.enabled = settings.ai_enabled
+
+    async def switch_mode(
+        self,
+        target: str,
+        *,
+        confirmation: str = "",
+        cancel_live_orders: bool = True,
+    ) -> dict[str, object]:
+        from aethergrid.vercel_env import on_vercel
+
+        if target not in {"demo", "paper", "live"}:
+            raise ModeError(f"unknown mode {target}")
+        if on_vercel() and target == "live":
+            raise ModeError(
+                "Vercel hosts the demo UI only. Live Coinbase trading requires Docker or a local process."
+            )
+        current = self.settings.mode
+        if target == current and (target != "live" or self.settings.live_confirmed):
+            return {"mode": current, "unchanged": True}
+
+        if target == "live":
+            if not self.settings.has_coinbase_keys:
+                raise ModeError(
+                    "CDP API key name and private key must be set in server env — never in the browser."
+                )
+            if confirmation.strip() != "I UNDERSTAND THE RISK":
+                raise ModeError("Type I UNDERSTAND THE RISK to enable live trading.")
+
+        if current == "live" and target != "live" and cancel_live_orders:
+            await self.manager.cancel_all_and_stop(flatten=False)
+
+        old_url = self.settings.effective_database_url
+        self.settings.mode = target  # type: ignore[assignment]
+        self.settings.live_confirmed = target == "live"
+        if target in {"demo", "live"}:
+            self.settings.ai_enabled = True
+        persist_runtime_mode(
+            self.settings,
+            mode=target,
+            live_confirmed=self.settings.live_confirmed,
+            ai_enabled=self.settings.ai_enabled,
+        )
+        record_mode(self.settings)
+
+        was_started = self.started
+        self.started = False
+        self._stop.set()
+        for task in self.tasks:
+            task.cancel()
+        if self.tasks:
+            await asyncio.gather(*self.tasks, return_exceptions=True)
+        self.tasks.clear()
+        try:
+            await self.exchange.close()
+        except Exception:  # noqa: BLE001
+            pass
+        if old_url != self.settings.effective_database_url:
+            await self.engine.dispose()
+            self.engine = get_engine(self.settings)
+            await init_db(self.engine)
+            self.sessions = get_session_factory(self.engine)
+            self.repo = Repository(self.sessions)
+        self._stop = asyncio.Event()
+        self._attach_venue()
+        if was_started:
+            await self.start()
+        log.info("mode_switched", from_mode=current, to_mode=target, live=self.settings.is_live)
+        return {
+            "mode": self.settings.mode,
+            "live": self.settings.is_live,
+            "demo": self.settings.is_demo,
+            "has_coinbase_keys": self.settings.has_coinbase_keys,
+            "ai_enabled": self.settings.ai_enabled,
+            "cancelled_live_orders": bool(current == "live" and target != "live" and cancel_live_orders),
+        }
 
     async def start(self) -> None:
         if self.started:

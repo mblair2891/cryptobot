@@ -11,12 +11,13 @@
   <div class="card">
     <h3>Active</h3>
     <table>
-      <thead><tr><th>Pair</th><th>Range</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Pair</th><th>Range</th><th>Cycles</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for b in bots %}
         <tr>
           <td><a href="/bots/{{ b.bot_id }}">{{ b.product_id }}</a></td>
           <td class="mono">{{ b.config.lower_price }} – {{ b.config.upper_price }}</td>
+          <td class="mono">{{ b.cycles_completed }}</td>
           <td><span class="badge {{ b.status.value }}">{{ b.status.value }}</span></td>
           <td class="row-actions">
             <button class="btn" data-action="pause" data-id="{{ b.bot_id }}">Pause</button>
@@ -25,7 +26,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="sub">None running.</td></tr>
+        <tr><td colspan="5" class="sub">None running.</td></tr>
         {% endfor %}
       </tbody>
     </table>

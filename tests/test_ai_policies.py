@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from aethergrid.ai.features import BotFeatures, OperatorFeatures, PairFeatures
+from aethergrid.ai.features import BotFeatures, OperatorFeatures, PairFeatures, pair_features
 from aethergrid.ai.policies import Noop, ProposeNewBot, decide, validate_action
+from aethergrid.domain.models import Candle, Product, Ticker
 
 
 def _pair(**over: object) -> PairFeatures:
@@ -21,10 +23,61 @@ def _pair(**over: object) -> PairFeatures:
         trend_regime=False,
         range_low=Decimal("2700"),
         range_high=Decimal("3300"),
+        crossings_7d=38,
+        drift_pct=Decimal("0.04"),
         score=Decimal("8"),
     )
     base.update(over)
     return PairFeatures(**base)  # type: ignore[arg-type]
+
+
+def _candles_choppy(n: int = 80) -> list[Candle]:
+    out: list[Candle] = []
+    lo, hi = Decimal("90"), Decimal("110")
+    px = Decimal("100")
+    direction = Decimal("1")
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    for i in range(n):
+        nxt = px + direction * Decimal("2.5")
+        if nxt >= hi:
+            nxt, direction = hi, Decimal("-1")
+        elif nxt <= lo:
+            nxt, direction = lo, Decimal("1")
+        top, bot = max(px, nxt), min(px, nxt)
+        out.append(
+            Candle(
+                product_id="SOL-USD",
+                start=t0 + timedelta(hours=i),
+                open=px,
+                high=top,
+                low=bot,
+                close=nxt,
+                volume=Decimal("1000"),
+            )
+        )
+        px = nxt
+    return out
+
+
+def _candles_trend(n: int = 80, start: Decimal = Decimal("100")) -> list[Candle]:
+    out: list[Candle] = []
+    px = start
+    t0 = datetime(2026, 1, 1, tzinfo=UTC)
+    for i in range(n):
+        nxt = (px * Decimal("1.012")).quantize(Decimal("0.0001"))
+        out.append(
+            Candle(
+                product_id="SOL-USD",
+                start=t0 + timedelta(hours=i),
+                open=px,
+                high=nxt,
+                low=px,
+                close=nxt,
+                volume=Decimal("1000"),
+            )
+        )
+        px = nxt
+    return out
 
 
 def test_propose_when_pair_oscillates() -> None:
@@ -38,13 +91,65 @@ def test_propose_when_pair_oscillates() -> None:
     assert isinstance(action, ProposeNewBot)
     assert action.product_id == "ETH-USD"
     assert action.lower_price < Decimal("3000") < action.upper_price
+    assert "crossings" in action.reason
     assert validate_action(action, features, 5) is None
 
 
 def test_skip_strong_trend() -> None:
-    features = OperatorFeatures(pairs=[_pair(trend_regime=True, score=Decimal("1"))], cash=Decimal("10000"))
+    features = OperatorFeatures(
+        pairs=[_pair(trend_regime=True, crossings_7d=4, drift_pct=Decimal("0.8"), score=Decimal("1"))],
+        cash=Decimal("10000"),
+    )
     action = decide(features, max_bots=5, quote_budget=Decimal("1000"))
     assert isinstance(action, Noop)
+
+
+def test_ai_accepts_choppy_fixture() -> None:
+    product = Product(
+        product_id="SOL-USD",
+        base_currency="SOL",
+        quote_currency="USD",
+        quote_increment=Decimal("0.01"),
+        base_increment=Decimal("0.001"),
+        min_market_funds=Decimal("1"),
+        price=Decimal("100"),
+        volume_24h=Decimal("50000"),
+    )
+    candles = _candles_choppy()
+    mark = candles[-1].close
+    ticker = Ticker(product_id="SOL-USD", price=mark, bid=mark * Decimal("0.9998"), ask=mark * Decimal("1.0002"))
+    feat = pair_features(product, ticker, candles, candles[::24], Decimal("0.006"))
+    assert feat.crossings_7d >= 8
+    assert feat.drift_pct < Decimal("0.60")
+    assert not feat.trend_regime
+    features = OperatorFeatures(pairs=[feat], cash=Decimal("8000"), mode="demo")
+    action = decide(features, max_bots=5, quote_budget=Decimal("500"))
+    assert isinstance(action, ProposeNewBot)
+    assert action.product_id == "SOL-USD"
+    assert "crossings" in action.reason
+
+
+def test_ai_rejects_trending_pair_fixture() -> None:
+    product = Product(
+        product_id="SOL-USD",
+        base_currency="SOL",
+        quote_currency="USD",
+        quote_increment=Decimal("0.01"),
+        base_increment=Decimal("0.001"),
+        min_market_funds=Decimal("1"),
+        price=Decimal("100"),
+        volume_24h=Decimal("50000"),
+    )
+    candles = _candles_trend()
+    mark = candles[-1].close
+    ticker = Ticker(product_id="SOL-USD", price=mark, bid=mark, ask=mark)
+    feat = pair_features(product, ticker, candles, candles[::24], Decimal("0.006"))
+    assert feat.trend_regime or feat.drift_pct >= Decimal("0.60")
+    features = OperatorFeatures(pairs=[feat], cash=Decimal("8000"), mode="demo")
+    action = decide(features, max_bots=5, quote_budget=Decimal("500"))
+    assert action.action in {"noop", "select_universe"}
+    if action.action == "propose_new_bot":
+        raise AssertionError("trending fixture must not open a grid")
 
 
 def test_validator_rejects_outside_range() -> None:

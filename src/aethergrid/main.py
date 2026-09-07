@@ -10,6 +10,7 @@ from aethergrid import __version__
 from aethergrid.api.routes_ai import router as ai_router
 from aethergrid.api.routes_bots import router as bots_router
 from aethergrid.api.routes_health import router as health_router
+from aethergrid.api.routes_mode import router as mode_router
 from aethergrid.api.routes_ui import router as ui_router
 from aethergrid.config import Settings, reset_settings
 from aethergrid.runtime import AppRuntime
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is not None and not on_vercel():
         app.state.settings = settings
     app.include_router(health_router)
+    app.include_router(mode_router)
     app.include_router(bots_router)
     app.include_router(ai_router)
     app.include_router(ui_router)

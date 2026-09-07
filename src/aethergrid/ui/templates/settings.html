@@ -3,23 +3,33 @@
 <div class="page-head">
   <div>
     <h2>Settings</h2>
-    <p>Hard limits. Secrets are never rendered.</p>
+    <p>Hard limits. Secrets are never rendered. Use the Demo | Paper | Live control in the header.</p>
   </div>
 </div>
 <div class="warn">
-  This is not financial advice. Grid bots lose money in strong trends. Paper is the default.
-  Live trading requires MODE=live and a typed confirmation.
+  This is not financial advice. Grids lose money in strong trends.
+  Live requires CDP keys in <strong>server env</strong> and typing I UNDERSTAND THE RISK.
+  {% if vercel %}This host is Vercel — live trading is refused.{% endif %}
 </div>
-<div class="card" style="margin-top:18px">
-  <table>
-    <tbody>
-      {% for k, v in settings.items() %}
-      <tr>
-        <th>{{ k }}</th>
-        <td class="mono">{{ v }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="grid-2" style="margin-top:18px">
+  <div class="card">
+    <h3>Mode</h3>
+    <p class="metric" style="font-size:22px">{{ mode|upper }}</p>
+    <p class="sub">CDP key {{ key_status }} · live confirmed {{ settings.live_confirmed }}</p>
+    <p class="sub">The private key never leaves the server. The browser only sees present/missing.</p>
+  </div>
+  <div class="card">
+    <h3>Limits</h3>
+    <table>
+      <tbody>
+        {% for k, v in settings.items() %}
+        <tr>
+          <th>{{ k }}</th>
+          <td class="mono">{{ v }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

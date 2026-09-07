@@ -88,7 +88,34 @@ class Settings(BaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         if self.kill_switch_path.parent:
             self.kill_switch_path.parent.mkdir(parents=True, exist_ok=True)
+        self._apply_runtime_overlay()
         return self
+
+    def _apply_runtime_overlay(self) -> None:
+        from aethergrid.vercel_env import on_vercel
+
+        if on_vercel():
+            object.__setattr__(self, "mode", "demo")
+            object.__setattr__(self, "live_confirmed", False)
+            return
+        path = self.data_dir / "runtime_mode.json"
+        if not path.exists():
+            return
+        try:
+            import json
+
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        if not isinstance(data, dict):
+            return
+        mode = data.get("mode")
+        if mode in {"demo", "paper", "live"}:
+            object.__setattr__(self, "mode", mode)
+        if "live_confirmed" in data:
+            object.__setattr__(self, "live_confirmed", bool(data.get("live_confirmed")))
+        if "ai_enabled" in data:
+            object.__setattr__(self, "ai_enabled", bool(data.get("ai_enabled")))
 
     @property
     def is_live(self) -> bool:

@@ -343,6 +343,7 @@ class BotRuntime(BaseModel):
     peak_equity: Decimal = ZERO
     daily_realized: Decimal = ZERO
     daily_realized_date: str = ""
+    cycles_completed: int = 0
 
     @property
     def product_id(self) -> str:

@@ -20,6 +20,44 @@ def ledger_path(settings: Settings) -> Path:
     return settings.data_dir / "mode_ledger.json"
 
 
+def runtime_mode_path(settings: Settings) -> Path:
+    return settings.data_dir / "runtime_mode.json"
+
+
+def persist_runtime_mode(
+    settings: Settings,
+    *,
+    mode: str,
+    live_confirmed: bool,
+    ai_enabled: bool,
+) -> None:
+    path = runtime_mode_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "mode": mode,
+                "live_confirmed": live_confirmed,
+                "ai_enabled": ai_enabled,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_runtime_mode(settings: Settings) -> dict[str, Any] | None:
+    path = runtime_mode_path(settings)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def load_ledger(settings: Settings) -> dict[str, Any]:
     path = ledger_path(settings)
     if not path.exists():
@@ -64,13 +102,6 @@ def assert_mode_allowed(settings: Settings) -> None:
         return
     if settings.mode == "live":
         settings.ensure_live_allowed()
-        ledger = load_ledger(settings)
-        if not ledger.get("seen_paper"):
-            raise ModeError(
-                "Live is blocked until paper mode has been run at least once. "
-                "Leave demo, set MODE=paper (and keys), start paper, then "
-                "`aethergrid live --i-understand-the-risk`."
-            )
         record_mode(settings)
         return
     raise ModeError(f"unknown mode {settings.mode}")
@@ -90,7 +121,7 @@ def describe_mode(settings: Settings) -> dict[str, Any]:
         "database": settings.effective_database_url.split(":///")[-1],
         "promotion": {
             "demo_to_paper": "allowed",
-            "demo_to_live": "blocked — run paper first",
-            "paper_to_live": "requires --i-understand-the-risk + LIVE_CONFIRMED",
+            "demo_to_live": "blocked until server CDP keys + I UNDERSTAND THE RISK",
+            "paper_to_live": "requires I UNDERSTAND THE RISK + LIVE_CONFIRMED",
         },
     }

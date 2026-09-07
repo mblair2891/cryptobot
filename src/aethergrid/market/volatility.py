@@ -24,6 +24,39 @@ def realized_vol(candles: list[Candle], period: int = 24) -> Decimal:
     return Decimal(str(sqrt(float(var))))
 
 
+def band_crossings(candles: list[Candle], band_pct: Decimal = Decimal("0.008")) -> int:
+    """Count sign flips of bar returns that exceed the band (many small up/down crossings)."""
+    if len(candles) < 4:
+        return 0
+    last_side = 0
+    crosses = 0
+    for i in range(1, len(candles)):
+        prev, cur = candles[i - 1].close, candles[i].close
+        if prev <= 0:
+            continue
+        ret = (cur - prev) / prev
+        side = 1 if ret >= band_pct else (-1 if ret <= -band_pct else 0)
+        if side and last_side and side != last_side:
+            crosses += 1
+        if side:
+            last_side = side
+    return crosses
+
+
+def net_drift_pct(candles: list[Candle]) -> Decimal:
+    """|net move| / high-low range. Low = sideways; high = one-way channel."""
+    if len(candles) < 2:
+        return ZERO
+    first, last = candles[0].close, candles[-1].close
+    hi = max(c.high for c in candles)
+    lo = min(c.low for c in candles)
+    width = hi - lo
+    floor = first * Decimal("0.02") if first > 0 else Decimal("0.01")
+    if width < floor:
+        width = floor
+    return abs(last - first) / width
+
+
 def range_quality(candles: list[Candle], period: int = 30) -> dict[str, Decimal]:
     """How mean-reverting vs one-way the recent window looks."""
     window = candles[-period:] if candles else []

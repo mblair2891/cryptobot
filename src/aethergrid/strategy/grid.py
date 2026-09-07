@@ -242,6 +242,7 @@ class GridEngine:
                     slot.sell_order_id = None
                     slot.state = SlotState.BUY_OPEN
                     slot.buy_remaining = slot.target_base
+                    runtime.cycles_completed += 1
                 else:
                     slot.state = SlotState.SELL_OPEN
 

@@ -9,10 +9,22 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body data-mode="{{ mode }}">
-    {% if mode == 'demo' %}
+  <body data-mode="{{ mode }}" data-vercel="{{ '1' if vercel else '0' }}" data-keys="{{ key_status }}">
+    {% if mode == 'live' %}
+    <div class="live-banner">LIVE — real Coinbase Advanced Trade orders. You can lose money.</div>
+    {% elif mode == 'paper' %}
+    <div class="paper-banner">PAPER — public Coinbase prices, simulated fills. Not live.</div>
+    {% else %}
     <div class="demo-banner">DEMO — simulated funds and prices. Not connected to Coinbase.</div>
     {% endif %}
+    <header class="sticky-bar">
+      <div class="mode-switch" role="group" aria-label="Trading mode">
+        <button type="button" class="mode-btn {{ 'on' if mode=='demo' }}" data-mode-target="demo">Demo</button>
+        <button type="button" class="mode-btn {{ 'on' if mode=='paper' }}" data-mode-target="paper">Paper</button>
+        <button type="button" class="mode-btn {{ 'on' if mode=='live' }}" data-mode-target="live">Live</button>
+      </div>
+      <span class="key-chip">CDP key {{ key_status }}</span>
+    </header>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
@@ -35,6 +47,22 @@
         {% block body %}{% endblock %}
       </main>
     </div>
+    <dialog id="mode-modal" class="mode-modal">
+      <form method="dialog" id="mode-form" class="stack">
+        <h3 id="mode-modal-title">Confirm mode</h3>
+        <p id="mode-modal-body" class="sub"></p>
+        <label id="mode-confirm-label" hidden>Type I UNDERSTAND THE RISK
+          <input id="mode-confirm-input" name="confirmation" autocomplete="off" />
+        </label>
+        <label id="mode-cancel-label" hidden>
+          <input type="checkbox" id="mode-cancel-orders" checked /> Cancel open live orders
+        </label>
+        <div class="row-actions">
+          <button class="btn" value="cancel" type="submit">Back</button>
+          <button class="btn primary" id="mode-confirm-go" value="ok" type="submit">Continue</button>
+        </div>
+      </form>
+    </dialog>
     <script src="/static/app.js"></script>
   </body>
 </html>

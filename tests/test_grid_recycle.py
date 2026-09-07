@@ -116,6 +116,7 @@ def test_sell_fill_reopens_buy(engine: GridEngine, grid_config: GridConfig) -> N
     assert slot.held_base == 0
     assert slot.state == SlotState.BUY_OPEN
     assert runtime.inventory.realized_pnl != 0
+    assert runtime.cycles_completed == 1
     intents = engine.desired_intents(runtime, Decimal("100000"))
     buys = [i for i in intents if i.kind == IntentKind.PLACE and i.side == OrderSide.BUY]
     assert any(b.slot_index == slot.index for b in buys)

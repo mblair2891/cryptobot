@@ -55,7 +55,7 @@ Demo, paper, and live share **one** matching engine. The venue adapter is the on
 | **paper** | none | public Coinbase market data only | simulated fills |
 | **live** | CDP view+trade | private REST/WS | real Advanced Trade orders |
 
-`demo → paper` is allowed. `demo → live` is blocked: leave demo, run paper once, then confirm live. Live credentials are **ignored** while `MODE=demo`.
+The dashboard header switches **Demo | Paper | Live**. Demo ignores live keys. Demo → Live is blocked until CDP keys are in **server env** and you type `I UNDERSTAND THE RISK`. The browser never receives the private key. Vercel is demo-only and refuses Live. Leaving Live asks whether to cancel open orders (default yes).
 
 ## Quick start (demo, zero keys)
 

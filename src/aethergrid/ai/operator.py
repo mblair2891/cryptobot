@@ -14,6 +14,7 @@ from aethergrid.ai.policies import (
     ProposeNewBot,
     ReconfigureBot,
     ResumeBot,
+    SelectUniverse,
     StopLossClose,
     TakeProfitClose,
     TrailDown,
@@ -70,6 +71,7 @@ class AIOperator:
         self.last_error: str | None = None
         self.last_at: datetime | None = None
         self.paused = False
+        self.last_universe: list[str] = []
 
     async def ingest(self, products: list[Product], ticks: dict[str, Ticker]) -> OperatorFeatures:
         fee = self.manager._fee_rate or Decimal("0.006")
@@ -95,7 +97,7 @@ class AIOperator:
                     errors.append(f"{pid}: {exc}")
                     continue
             try:
-                c1h = await self.manager.exchange.get_candles(pid, "ONE_HOUR", limit=120)
+                c1h = await self.manager.exchange.get_candles(pid, "ONE_HOUR", limit=180)
                 c1d = await self.manager.exchange.get_candles(pid, "ONE_DAY", limit=45)
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{pid} candles: {exc}")
@@ -127,8 +129,12 @@ class AIOperator:
         return features
 
     async def step(self, products: list[Product], ticks: dict[str, Ticker]) -> Action:
+        if self.settings.mode == "live" and not self.settings.live_confirmed:
+            action: Action = Noop(reason="live AI requires I UNDERSTAND THE RISK")
+            self.last_action = action
+            return action
         if not self.enabled or self.paused:
-            action: Action = Noop(reason="ai paused")
+            action = Noop(reason="ai paused")
             self.last_action = action
             return action
         if self.risk.kill_tripped():
@@ -168,6 +174,9 @@ class AIOperator:
 
     async def _execute(self, action: Action) -> None:
         if isinstance(action, Noop):
+            return
+        if isinstance(action, SelectUniverse):
+            self.last_universe = list(action.ranked)
             return
         if isinstance(action, ProposeNewBot):
             cfg = GridConfig(

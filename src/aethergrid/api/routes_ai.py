@@ -17,6 +17,7 @@ async def ai_status(request: Request) -> dict[str, Any]:
         "last_action": op.last_action.model_dump(mode="json") if op.last_action else None,
         "last_error": op.last_error,
         "has_llm": request.app.state.runtime.settings.has_llm,
+        "universe": op.last_universe,
     }
 
 

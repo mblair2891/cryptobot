@@ -7,7 +7,7 @@ import pytest
 
 from aethergrid.config import Settings
 from aethergrid.exchange.demo import DemoExchange
-from aethergrid.mode import ModeError, assert_mode_allowed, record_mode
+from aethergrid.mode import ModeError, assert_mode_allowed
 from aethergrid.runtime import AppRuntime
 
 
@@ -22,7 +22,8 @@ def _base(tmp_path: Path, **over: object) -> Settings:
         log_json=False,
         coinbase_api_key_name="organizations/demo/apiKeys/fake",
         coinbase_api_private_key="-----BEGIN EC PRIVATE KEY-----\nMIIB\n-----END EC PRIVATE KEY-----",
-        live_confirmed=True,
+        live_confirmed=False,
+        mode="demo",
     )
     kwargs.update(over)
     return Settings(**kwargs)  # type: ignore[arg-type]
@@ -46,23 +47,38 @@ async def test_demo_never_constructs_coinbase_even_with_keys(tmp_path: Path, mon
         assert isinstance(rt.exchange, DemoExchange)
         assert rt.exchange.venue.value == "demo"
         assert rt.market is None
+        with pytest.raises(ModeError, match="I UNDERSTAND THE RISK"):
+            await rt.switch_mode("live", confirmation="nope")
+        assert constructed == []
     finally:
         await rt.stop()
 
 
-def test_demo_cannot_promote_straight_to_live(tmp_path: Path) -> None:
-    demo = _base(tmp_path, mode="demo")
-    assert_mode_allowed(demo)
-    live = _base(tmp_path, mode="live")
-    with pytest.raises(ModeError, match="paper"):
-        assert_mode_allowed(live)
+@pytest.mark.asyncio
+async def test_switch_live_blocked_without_keys(tmp_path: Path) -> None:
+    settings = _base(tmp_path, mode="demo", coinbase_api_key_name="", coinbase_api_private_key="")
+    rt = await AppRuntime.create(settings)
+    try:
+        await rt.start()
+        with pytest.raises(ModeError, match="server env"):
+            await rt.switch_mode("live", confirmation="I UNDERSTAND THE RISK")
+        assert isinstance(rt.exchange, DemoExchange)
+    finally:
+        await rt.stop()
 
 
-def test_paper_then_live_promotion_allowed(tmp_path: Path) -> None:
-    paper = _base(tmp_path, mode="paper", live_confirmed=False)
-    record_mode(paper)
-    live = _base(tmp_path, mode="live", live_confirmed=True)
-    assert_mode_allowed(live)
+@pytest.mark.asyncio
+async def test_vercel_refuses_live_toggle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VERCEL", "1")
+    settings = _base(tmp_path, mode="demo")
+    rt = await AppRuntime.create(settings)
+    try:
+        await rt.start()
+        with pytest.raises(ModeError, match="Vercel"):
+            await rt.switch_mode("live", confirmation="I UNDERSTAND THE RISK")
+        assert isinstance(rt.exchange, DemoExchange)
+    finally:
+        await rt.stop()
 
 
 def test_ensure_live_blocked_in_demo(tmp_path: Path) -> None:
@@ -71,11 +87,10 @@ def test_ensure_live_blocked_in_demo(tmp_path: Path) -> None:
         settings.ensure_live_allowed()
 
 
-@pytest.mark.asyncio
-async def test_runtime_live_without_paper_raises(tmp_path: Path) -> None:
-    settings = _base(tmp_path, mode="live")
-    with pytest.raises(PermissionError, match="paper"):
-        await AppRuntime.create(settings)
+def test_assert_live_needs_confirmation(tmp_path: Path) -> None:
+    settings = _base(tmp_path, mode="live", live_confirmed=False)
+    with pytest.raises(PermissionError, match="LIVE_CONFIRMED"):
+        assert_mode_allowed(settings)
 
 
 def test_virtual_balance_and_demo_db_split(tmp_path: Path) -> None:

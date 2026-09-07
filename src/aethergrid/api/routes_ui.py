@@ -6,6 +6,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from aethergrid.vercel_env import on_vercel
+
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "ui" / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter(tags=["ui"])
@@ -18,6 +20,9 @@ def _ctx(request: Request, **extra: object) -> dict[str, object]:
         "overview": rt.overview(),
         "mode": rt.settings.mode,
         "live": rt.settings.is_live,
+        "has_coinbase_keys": rt.settings.has_coinbase_keys,
+        "vercel": on_vercel(),
+        "key_status": "present" if rt.settings.has_coinbase_keys else "missing",
     }
     ctx.update(extra)
     return ctx

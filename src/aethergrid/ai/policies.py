@@ -90,9 +90,17 @@ class FlattenAndArchive(BaseModel):
     reason: str
 
 
+class SelectUniverse(BaseModel):
+    action: Literal["select_universe"] = "select_universe"
+    ranked: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    reason: str = "ranked pairs for sideways grids"
+
+
 Action = Annotated[
     Union[
         Noop,
+        SelectUniverse,
         ProposeNewBot,
         ReconfigureBot,
         TrailUp,
@@ -150,6 +158,10 @@ def validate_action(action: Action, features: OperatorFeatures, max_bots: int) -
             return "step too tight vs fees/spread"
         if pair.trend_regime:
             return "strong trend — skip static grid"
+        if pair.crossings_7d and pair.crossings_7d < 8 and pair.oscillation < Decimal("0.12"):
+            return "too few range crossings for a grid"
+        if pair.drift_pct >= Decimal("0.60"):
+            return "one-way drift — not a grid market"
         if action.investment_quote > features.cash * Decimal("0.4") and features.cash > 0:
             return "per-pair allocation cap 40% of cash"
         btc_exposure = sum(
@@ -164,6 +176,28 @@ def validate_action(action: Action, features: OperatorFeatures, max_bots: int) -
     if isinstance(action, AddFunds) and action.quote_amount <= 0:
         return "add_funds amount"
     return None
+
+
+def pair_reason(pair: PairFeatures) -> str:
+    if pair.reason_line:
+        return pair.reason_line
+    return (
+        f"{pair.product_id}: {pair.crossings_7d} range crossings / 7d, "
+        f"drift {float(pair.drift_pct) * 100:.0f}%, spread {float(pair.spread_bps):.0f}bps."
+    )
+
+
+def propose_levels(pair: PairFeatures, lower: Decimal, upper: Decimal, fee_rate: Decimal) -> int:
+    mark = pair.mark or ((lower + upper) / 2)
+    if mark <= 0 or upper <= lower:
+        return 21
+    width_pct = (upper - lower) / mark
+    spread_pct = pair.spread_bps / Decimal("10000") if pair.spread_bps else Decimal("0.0005")
+    min_step = Decimal("2") * (fee_rate * 2 + spread_pct)
+    if min_step <= 0:
+        return 21
+    n = int(width_pct / min_step) + 1
+    return max(8, min(31, n))
 
 
 def propose_range(pair: PairFeatures) -> tuple[Decimal, Decimal]:
@@ -216,39 +250,51 @@ def decide(features: OperatorFeatures, *, max_bots: int, quote_budget: Decimal) 
     if len(active) >= max_bots:
         return Noop(reason="at max bots")
 
-    ranked = sorted(
-        (p for p in features.pairs if p.usd_like and p.price_inside_range and p.step_ok and not p.trend_regime),
-        key=lambda p: p.score,
-        reverse=True,
-    )
+    eligible = [
+        p
+        for p in features.pairs
+        if p.usd_like
+        and p.price_inside_range
+        and p.step_ok
+        and not p.trend_regime
+        and p.drift_pct < Decimal("0.60")
+        and (p.crossings_7d >= 8 or p.oscillation >= Decimal("0.12"))
+    ]
+    ranked = sorted(eligible, key=lambda p: p.score, reverse=True)
     running_pairs = {b.product_id for b in active}
     for pair in ranked:
         if pair.product_id in running_pairs:
-            continue
-        if pair.oscillation < Decimal("0.12"):
             continue
         lower, upper = propose_range(pair)
         if not (lower < pair.mark < upper):
             continue
         investment = min(quote_budget, features.cash * Decimal("0.2") if features.cash > 0 else quote_budget)
         if investment <= 0:
-            return Noop(reason="no cash for new grid")
+            return SelectUniverse(
+                ranked=[p.product_id for p in ranked[:8]],
+                reasons=[pair_reason(p) for p in ranked[:8]],
+                reason="no cash for new grid; universe ranked",
+            )
+        levels = propose_levels(pair, lower, upper, Decimal("0.006"))
         return ProposeNewBot(
             product_id=pair.product_id,
             investment_quote=investment,
             lower_price=lower,
             upper_price=upper,
-            grid_levels=21,
+            grid_levels=levels,
             trailing_up=True,
             trailing_down=False,
             take_profit_pct=Decimal("0.08"),
             stop_loss_pct=Decimal("0.12"),
-            reason=(
-                f"oscillating {pair.product_id}: osc={float(pair.oscillation):.2f} "
-                f"er={float(pair.er):.2f} inside={pair.price_inside_range} step_ok={pair.step_ok}"
-            ),
+            reason=pair_reason(pair),
         )
-    return Noop(reason="no pair cleared range/liquidity/fee filters")
+    if ranked:
+        return SelectUniverse(
+            ranked=[p.product_id for p in ranked[:8]],
+            reasons=[pair_reason(p) for p in ranked[:8]],
+            reason=pair_reason(ranked[0]) + " All eligible pairs already running or waiting.",
+        )
+    return Noop(reason="no pair cleared sideways/liquidity/fee filters")
 
 
 def action_to_dict(action: Action) -> dict[str, Any]:

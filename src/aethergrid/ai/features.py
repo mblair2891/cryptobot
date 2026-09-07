@@ -5,7 +5,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from aethergrid.domain.models import BotRuntime, Candle, Product, Ticker
-from aethergrid.market.volatility import range_quality, realized_vol
+from aethergrid.market.volatility import band_crossings, net_drift_pct, range_quality, realized_vol
 from aethergrid.money import ZERO
 from aethergrid.strategy.ladder import fee_spread_cover_ok, min_step_pct
 from aethergrid.strategy.protection import atr, donchian, efficiency_ratio, inventory_skew
@@ -33,6 +33,11 @@ class PairFeatures(BaseModel):
     liquidity_ok: bool = False
     usd_like: bool = False
     trend_regime: bool = False
+    crossings_7d: int = 0
+    crossings_30d: int = 0
+    drift_pct: Decimal = ZERO
+    donchian_break: bool = False
+    reason_line: str = ""
     score: Decimal = ZERO
 
 
@@ -71,30 +76,46 @@ def pair_features(
     fee_rate: Decimal,
 ) -> PairFeatures:
     mark = ticker.last or ticker.mid or product.price
-    rq = range_quality(candles_1d or candles_1h, period=30)
-    high = rq["high"] or (donchian(candles_1d, 30)[0] if candles_1d else ZERO)
-    low = rq["low"] or (donchian(candles_1d, 30)[1] if candles_1d else ZERO)
+    h7 = candles_1h[-168:] if candles_1h else candles_1h
+    h30 = candles_1d[-30:] if candles_1d else candles_1h
+    rq = range_quality(h7 or h30 or candles_1h, period=min(30, len(h7 or h30 or candles_1h) or 30))
+    high = rq["high"]
+    low = rq["low"]
+    if h7:
+        h7hi, h7lo = donchian(h7, len(h7))
+        high = max(high, h7hi) if high else h7hi
+        low = min(low, h7lo) if low else h7lo
+    if h30:
+        h30hi, h30lo = donchian(h30, len(h30))
+        if h30hi:
+            high = max(high, h30hi) if high else h30hi
+        if h30lo:
+            low = min(low, h30lo) if low else h30lo
     inside = bool(low and high and low < mark < high)
-    # Hypothetical 2% geometric step over the swing range.
     step_ok = False
+    spread_pct = ticker.spread_bps / Decimal("10000") if ticker.spread_bps else Decimal("0.0005")
     if low > 0 and high > low:
         from aethergrid.strategy.ladder import geometric_prices
 
         try:
-            prices = geometric_prices(low, high, 21)
-            spread_pct = ticker.spread_bps / Decimal("10000") if ticker.spread_bps else Decimal("0.0005")
+            # 8-level ladder is the coarsest grid we will propose.
+            prices = geometric_prices(low, high, 8)
             step_ok = fee_spread_cover_ok(prices, fee_rate, spread_pct, Decimal("2"))
         except Exception:  # noqa: BLE001
-            step_ok = min_step_pct([low, high]) > fee_rate * 4
+            step_ok = min_step_pct([low, high]) > (fee_rate * 2 + spread_pct) * 2
     usd_like = product.quote_currency.upper() in {"USD", "USDC"}
-    volume_ok = product.volume_24h > 0 or ticker.volume_24h > 0
-    # Prefer high notionals: volume_24h on Coinbase product is often base units; use price*vol when possible.
     liq = ticker.volume_24h or product.volume_24h
-    liquidity_ok = usd_like and (liq > 0 or True) and ticker.spread_bps < Decimal("30")
+    liquidity_ok = usd_like and ticker.spread_bps < Decimal("30")
     er = efficiency_ratio(candles_1h or candles_1d, 20)
-    trend = er >= Decimal("0.45")
+    width = high - low if high > low else ZERO
+    donchian_pos = ((mark - low) / width) if width > 0 else Decimal("0.5")
+    donchian_break = donchian_pos >= Decimal("0.92") or donchian_pos <= Decimal("0.08")
+    trend = er >= Decimal("0.45") or (donchian_break and er >= Decimal("0.30"))
+    crossings_7d = band_crossings(h7, Decimal("0.008"))
+    crossings_30d = band_crossings(h30, Decimal("0.008"))
+    drift = net_drift_pct(h7 or h30)
     vol_1h = realized_vol(candles_1h[-24:] if candles_1h else [], 24)
-    vol_4h = realized_vol(candles_1h[-16:] if candles_1h else [], 16)
+    vol_4h = realized_vol(candles_1h[-96:] if candles_1h else [], 96)
     vol_1d = realized_vol(candles_1d[-30:] if candles_1d else [], 30)
     score = ZERO
     if usd_like:
@@ -103,16 +124,28 @@ def pair_features(
         score += Decimal("2")
     if step_ok:
         score += Decimal("2")
+    else:
+        score -= Decimal("3")
+    score += Decimal(min(crossings_7d, 80)) / Decimal("10")
     if rq["oscillation"] >= Decimal("0.15"):
         score += Decimal("2")
-    else:
-        score -= Decimal("1")
+    if drift <= Decimal("0.25"):
+        score += Decimal("3")
+    elif drift >= Decimal("0.60"):
+        score -= Decimal("4")
+        trend = True
     if trend:
+        score -= Decimal("5")
+    if ticker.spread_bps <= Decimal("5"):
+        score += Decimal("2")
+    elif ticker.spread_bps > Decimal("15"):
         score -= Decimal("2")
-    if ticker.spread_bps > Decimal("15"):
-        score -= Decimal("1")
-    if volume_ok:
+    if liq > 0:
         score += Decimal("1")
+    reason_line = (
+        f"{product.product_id}: {crossings_7d} range crossings / 7d, "
+        f"drift {float(drift) * 100:.0f}%, spread {float(ticker.spread_bps):.0f}bps."
+    )
     return PairFeatures(
         product_id=product.product_id,
         quote=product.quote_currency,
@@ -135,6 +168,11 @@ def pair_features(
         liquidity_ok=liquidity_ok,
         usd_like=usd_like,
         trend_regime=trend,
+        crossings_7d=crossings_7d,
+        crossings_30d=crossings_30d,
+        drift_pct=drift,
+        donchian_break=donchian_break,
+        reason_line=reason_line,
         score=score,
     )
 

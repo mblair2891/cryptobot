@@ -70,16 +70,69 @@ a:hover { color: var(--cyan); }
 .mode-pill.demo { color: var(--demo); }
 .mode-pill.live { color: var(--live); }
 
-.demo-banner {
-  background: linear-gradient(90deg, #3a2e12, #5a4318);
-  color: #f3e2b0;
+.demo-banner, .paper-banner, .live-banner {
   text-align: center;
   font-size: 13px;
   letter-spacing: 0.04em;
   padding: 8px 16px;
-  border-bottom: 1px solid rgba(215, 179, 105, 0.35);
   font-family: var(--sans);
 }
+.demo-banner {
+  background: linear-gradient(90deg, #3a2e12, #5a4318);
+  color: #f3e2b0;
+  border-bottom: 1px solid rgba(215, 179, 105, 0.35);
+}
+.paper-banner {
+  background: linear-gradient(90deg, #0f2a24, #163830);
+  color: #9ee0d0;
+  border-bottom: 1px solid rgba(122, 212, 192, 0.35);
+}
+.live-banner {
+  background: repeating-linear-gradient(-45deg, #5a1814, #5a1814 12px, #7a221c 12px, #7a221c 24px);
+  color: #ffd4cc;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 2px solid #e07a6a;
+}
+.sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  background: rgba(11, 16, 32, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.mode-switch { display: flex; gap: 6px; }
+.mode-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.mode-btn.on { color: #1a1408; background: var(--gold); border-color: var(--gold); font-weight: 600; }
+.mode-btn.on[data-mode-target="live"] { background: var(--live); border-color: var(--live); color: #1a0c0a; }
+.key-chip { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.mode-modal {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-card);
+  color: var(--text);
+  padding: 20px;
+  max-width: 440px;
+}
+.mode-modal::backdrop { background: rgba(0,0,0,0.55); }
+.rung.mark .bar { box-shadow: 0 0 0 1px var(--gold); }
 
 .main { padding: 28px 36px 64px; }
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }

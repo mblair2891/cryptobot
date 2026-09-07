@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from aethergrid.domain.models import BotRuntime, GridConfig
 from aethergrid.market.products import filter_spot
+from aethergrid.vercel_env import on_vercel
 
 router = APIRouter(prefix="/api", tags=["bots"])
 
@@ -91,6 +92,7 @@ def _bot_json(runtime: BotRuntime) -> dict[str, Any]:
         "protection": runtime.protection.model_dump(mode="json"),
         "trailing": runtime.trailing.model_dump(mode="json"),
         "last_error": runtime.last_error,
+        "cycles_completed": runtime.cycles_completed,
         "config": runtime.config.model_dump(mode="json"),
     }
 
@@ -290,6 +292,8 @@ async def public_settings(request: Request) -> dict[str, Any]:
         "min_cash_reserve": str(s.min_cash_reserve),
         "flatten_on_kill": s.flatten_on_kill,
         "has_coinbase_keys": s.has_coinbase_keys,
+        "key_status": "present" if s.has_coinbase_keys else "missing",
+        "vercel": on_vercel(),
         "has_llm": s.has_llm,
         "llm_model": s.llm_model if s.has_llm else None,
         "database": "postgres" if "postgres" in s.database_url else "sqlite",
