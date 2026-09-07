@@ -37,7 +37,7 @@ async def test_demo_never_constructs_coinbase_even_with_keys(tmp_path: Path, mon
             constructed.append("CoinbaseExchange")
             raise AssertionError("live client must never be constructed in demo")
 
-    monkeypatch.setattr("aethergrid.runtime.CoinbaseExchange", Boom)
+    monkeypatch.setattr("aethergrid.exchange.coinbase.CoinbaseExchange", Boom)
     settings = _base(tmp_path, mode="demo")
     rt = await AppRuntime.create(settings)
     try:

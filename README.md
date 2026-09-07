@@ -84,6 +84,22 @@ docker compose up --build
 
 `docker compose up` runs **demo mode** with no Coinbase keys and no private API calls.
 
+## Vercel = demo UI only
+
+https://cryptobot-zeta.vercel.app/ is a **serverless demo** of the HTMX dashboard. It is not a trading host.
+
+- Forced `MODE=demo`. Live keys are ignored even if they exist in the Vercel project.
+- SQLite lives in `/tmp` and is re-seeded on cold start. Do not expect durable bots.
+- There is **no background worker**. The UI polls `POST /api/tick` so the synthetic grid advances per request.
+- Real **paper** and **live** trading: run locally, Docker Compose, Railway, or Render — not Vercel.
+
+```bash
+# this repo on Vercel (already wired)
+# vercel.json + api/index.py + requirements-vercel.txt
+```
+
+Local / Docker paths are unchanged: `aethergrid demo`, `aethergrid paper`, `docker compose up`.
+
 ```bash
 aethergrid demo reset     # wipe demo DB; next start reseeds
 aethergrid mode show      # current mode + promotion rules

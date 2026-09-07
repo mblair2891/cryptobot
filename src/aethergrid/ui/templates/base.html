@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body>
+  <body data-mode="{{ mode }}">
     {% if mode == 'demo' %}
     <div class="demo-banner">DEMO — simulated funds and prices. Not connected to Coinbase.</div>
     {% endif %}

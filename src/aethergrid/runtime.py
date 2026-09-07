@@ -9,7 +9,6 @@ from aethergrid.bots.manager import BotManager
 from aethergrid.config import Settings
 from aethergrid.domain.models import Fill, Order, Product, Ticker
 from aethergrid.exchange.base import Exchange
-from aethergrid.exchange.coinbase import CoinbaseExchange
 from aethergrid.exchange.paper import PaperExchange
 from aethergrid.logging import get_logger, setup_logging
 from aethergrid.market.products import PublicMarket, filter_spot
@@ -46,6 +45,7 @@ class AppRuntime:
         self.worker_enabled = settings.embed_worker
         self._stop = asyncio.Event()
         self.ai_paused = False
+        self._ticks_since_ai = 0
 
     @classmethod
     async def create(cls, settings: Settings | None = None) -> AppRuntime:
@@ -55,6 +55,8 @@ class AppRuntime:
         rt = cls(settings)
         await init_db(rt.engine)
         if settings.mode == "live":
+            from aethergrid.exchange.coinbase import CoinbaseExchange
+
             assert_trade_only_key_docs()
             rt.market = PublicMarket()
             rt.exchange = CoinbaseExchange(settings, market=rt.market)
@@ -131,6 +133,50 @@ class AppRuntime:
         await self.engine.dispose()
         self.started = False
         log.info("runtime_stopped")
+
+    async def tick_once(self, *, steps: int = 1, run_ai: bool = False) -> dict[str, object]:
+        """Advance the demo/paper engine one (or more) steps. Safe on serverless."""
+        if not self.started:
+            return {"ok": False, "reason": "not_started"}
+        if kill_switch_tripped(self.settings):
+            return {"ok": False, "reason": "kill_switch"}
+        pids = {b.product_id for b in self.manager.list_runtime()}
+        if not pids:
+            pids = {"BTC-USD", "ETH-USD"}
+        fills_n = 0
+        for _ in range(max(1, steps)):
+            for pid in pids:
+                try:
+                    ticker = await self.exchange.get_ticker(pid)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("ticker_failed", product_id=pid, error=str(exc))
+                    continue
+                self.ticks[pid] = ticker
+                await self.manager.on_ticker(ticker)
+                if isinstance(self.exchange, PaperExchange):
+                    fills = await self.exchange.on_ticker(ticker)
+                    for fill in fills:
+                        await self.manager.on_fill(fill)
+                        fills_n += 1
+            self._ticks_since_ai += 1
+        ai_action = None
+        should_ai = run_ai or (self.settings.ai_enabled and not self.operator.paused and self._ticks_since_ai >= 8)
+        if should_ai:
+            self._ticks_since_ai = 0
+            try:
+                action = await self.operator.step(self.products, self.ticks)
+                ai_action = action.action
+            except Exception as exc:  # noqa: BLE001
+                log.error("tick_ai_failed", error=str(exc))
+                ai_action = "error"
+        return {
+            "ok": True,
+            "fills": fills_n,
+            "products": sorted(pids),
+            "ai": ai_action,
+            "mode": self.settings.mode,
+            "worker": self.worker_enabled,
+        }
 
     async def _on_user_event(self, event: Order | Fill) -> None:
         if isinstance(event, Fill):

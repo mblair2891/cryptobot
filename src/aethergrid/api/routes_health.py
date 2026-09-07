@@ -25,3 +25,10 @@ async def health(request: Request) -> dict[str, object]:
 @router.get("/api/status")
 async def status(request: Request) -> dict[str, object]:
     return request.app.state.runtime.overview()
+
+
+@router.api_route("/api/tick", methods=["GET", "POST"])
+async def tick(request: Request) -> dict[str, object]:
+    """Advance the demo engine one step. Used on Vercel instead of a background worker."""
+    rt = request.app.state.runtime
+    return await rt.tick_once(run_ai=True)

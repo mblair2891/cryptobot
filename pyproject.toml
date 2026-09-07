@@ -48,6 +48,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel.sources]
 "src" = ""
 
+[tool.vercel]
+entrypoint = "api.index:app"
+
 [tool.hatch.build.targets.wheel.force-include]
 "src/aethergrid/ui/templates" = "aethergrid/ui/templates"
 "src/aethergrid/ui/static" = "aethergrid/ui/static"
@@ -56,7 +59,7 @@ build-backend = "hatchling.build"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

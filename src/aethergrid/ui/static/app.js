@@ -32,6 +32,18 @@ document.addEventListener("click", async (e) => {
   window.location.reload();
 });
 
+if (document.body && document.body.dataset.mode === "demo") {
+  setInterval(() => {
+    fetch("/api/tick", { method: "POST" }).catch(() => {});
+  }, 2000);
+  setInterval(() => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    if (document.querySelector("form.js-create-bot")) return;
+    window.location.reload();
+  }, 10000);
+}
+
 document.addEventListener("submit", async (e) => {
   const form = e.target;
   if (!form.classList.contains("js-create-bot")) return;

@@ -19,3 +19,4 @@ KILL_SWITCH
 .coverage
 htmlcov/
 uv.lock
+.vercel
